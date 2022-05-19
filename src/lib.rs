@@ -84,7 +84,7 @@ impl ErrorHandler {
     ///
     /// # Panics
     /// If the fallback message or webhook content is somehow invalid
-    #[allow(clippy::unwrap_used, unused_must_use)]
+    #[allow(clippy::unwrap_used, unused_must_use, clippy::print_stderr)]
     pub async fn handle(&self, http: &Client, error: impl Error + Send) {
         let mut error_message = format!("{error}");
 
@@ -122,22 +122,27 @@ impl ErrorHandler {
             }
         }
 
-        self.maybe_append_error(error_message);
+        self.maybe_append_error(&mut error_message);
+
+        eprintln!("{error_message}");
     }
 
     /// Handle an error, ignoring [`Self::channel`] and [`Self::webhook`]
     ///
     /// Prefer this if you've only set [`Self::file`]
+    #[allow(clippy::print_stderr)]
     pub fn handle_sync(&self, error: impl Error) {
-        let error_message = format!("{error}");
+        let mut error_message = format!("{error}");
 
-        self.maybe_append_error(error_message);
+        self.maybe_append_error(&mut error_message);
+
+        eprintln!("{error_message}");
     }
 
     /// Tries to append the given error message to the path, writing the
     /// returned error to the error message
     #[allow(unused_must_use)]
-    fn maybe_append_error(&self, mut error_message: String) {
+    fn maybe_append_error(&self, error_message: &mut String) {
         if let Some(path) = &self.file {
             if let Err(err) = OpenOptions::new()
                 .append(true)
