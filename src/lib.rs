@@ -7,10 +7,11 @@
     clippy::blanket_clippy_restriction_lints,
     clippy::single_char_lifetime_names,
     clippy::missing_inline_in_public_items,
-    clippy::implicit_return
+    clippy::implicit_return,
+    clippy::pattern_type_mismatch
 )]
 
-use std::{error::Error, fmt::Write, fs::OpenOptions, io::Write as _, path::Path};
+use std::{error::Error, fmt::Write, fs::OpenOptions, io::Write as _, path::PathBuf};
 
 use twilight_http::Client;
 use twilight_model::id::{
@@ -19,16 +20,16 @@ use twilight_model::id::{
 };
 
 /// The main struct to handle errors
-pub struct ErrorHandler<'a> {
+pub struct ErrorHandler {
     /// Channel to create message in on error
-    channel: Option<(&'a Client, Id<ChannelMarker>)>,
+    channel: Option<Id<ChannelMarker>>,
     /// Webhook to execute on error
-    webhook: Option<(&'a Client, Id<WebhookMarker>, &'a str)>,
+    webhook: Option<(Id<WebhookMarker>, String)>,
     /// File to append to on error
-    file: Option<&'a Path>,
+    file: Option<PathBuf>,
 }
 
-impl<'a> ErrorHandler<'a> {
+impl ErrorHandler {
     /// Make a handler that only prints errors to [`io::stderr`]
     #[must_use]
     pub const fn new() -> Self {
@@ -42,31 +43,29 @@ impl<'a> ErrorHandler<'a> {
     /// Set the handler to create a message in the given channel on errors
     ///
     /// The channel can also be DM channel, such as the owner's
-    pub fn channel(&mut self, client: &'a Client, channel_id: Id<ChannelMarker>) -> &mut Self {
-        self.channel = Some((client, channel_id));
+    pub fn channel(&mut self, channel_id: Id<ChannelMarker>) -> &mut Self {
+        self.channel = Some(channel_id);
         self
     }
 
     /// Set the handler to execute the given webhook on errors
-    pub fn webhook(
-        &mut self,
-        client: &'a Client,
-        webhook_id: Id<WebhookMarker>,
-        token: &'a str,
-    ) -> &mut Self {
-        self.webhook = Some((client, webhook_id, token));
+    pub fn webhook(&mut self, webhook_id: Id<WebhookMarker>, token: String) -> &mut Self {
+        self.webhook = Some((webhook_id, token));
         self
     }
 
     /// Set the file to append to on error
     ///
     /// The file will be created if it doesn't exist
-    pub fn file(&mut self, path: &'a Path) -> &mut Self {
+    pub fn file(&mut self, path: PathBuf) -> &mut Self {
         self.file = Some(path);
         self
     }
 
     /// Handle an error
+    ///
+    /// Prefer [`Self::handle_sync`] if [`Self::channel`] or [`Self::webhook`]
+    /// aren't set
     ///
     /// - Prints the error message to [`io::stderr`]
     /// - If [`Self::channel`] was called, creates a message in the given
@@ -83,23 +82,19 @@ impl<'a> ErrorHandler<'a> {
     /// if both [`Self::channel`] and [`Self::webhook`] are called, it both
     /// creates a message and executes the webhook
     ///
-    /// If [`Self::channel`] or [`Self::webhook`] wasn't called, this method
-    /// isn't actually `async`
-    ///
     /// # Panics
     /// If the fallback message or webhook content is somehow invalid
-    #[allow(unused_must_use, clippy::unwrap_used)]
-    pub async fn handle(&self, error: impl Error + Send) {
+    #[allow(clippy::unwrap_used, unused_must_use)]
+    pub async fn handle(&self, http: &Client, error: impl Error + Send) {
         let mut error_message = format!("{error}");
 
-        if let Some((client, channel_id)) = self.channel {
-            if let Err(err) = client
+        if let Some(channel_id) = self.channel {
+            if let Err(err) = http
                 .create_message(channel_id)
                 .content(&error_message)
                 .unwrap_or_else(|_| {
                     {
-                        client
-                            .create_message(channel_id)
+                        http.create_message(channel_id)
                             .content("An error occurred, check the `stderr` for more info")
                     }
                     .unwrap()
@@ -111,13 +106,12 @@ impl<'a> ErrorHandler<'a> {
             }
         }
 
-        if let Some((client, webhook_id, token)) = self.webhook {
-            if let Err(err) = client
-                .execute_webhook(webhook_id, token)
+        if let Some((webhook_id, token)) = &self.webhook {
+            if let Err(err) = http
+                .execute_webhook(*webhook_id, token)
                 .content(&error_message)
                 .unwrap_or_else(|_| {
-                    client
-                        .execute_webhook(webhook_id, token)
+                    http.execute_webhook(*webhook_id, token)
                         .content("An error occurred, check the `stderr` for more info")
                         .unwrap()
                 })
@@ -128,7 +122,23 @@ impl<'a> ErrorHandler<'a> {
             }
         }
 
-        if let Some(path) = self.file {
+        self.maybe_append_error(error_message);
+    }
+
+    /// Handle an error, ignoring [`Self::channel`] and [`Self::webhook`]
+    ///
+    /// Prefer this if you've only set [`Self::file`]
+    pub fn handle_sync(&self, error: impl Error) {
+        let error_message = format!("{error}");
+
+        self.maybe_append_error(error_message);
+    }
+
+    /// Tries to append the given error message to the path, writing the
+    /// returned error to the error message
+    #[allow(unused_must_use)]
+    fn maybe_append_error(&self, mut error_message: String) {
+        if let Some(path) = &self.file {
             if let Err(err) = OpenOptions::new()
                 .append(true)
                 .create(true)
