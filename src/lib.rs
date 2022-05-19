@@ -91,7 +91,7 @@ impl ErrorHandler {
     /// If the fallback message or webhook content is somehow invalid
     #[allow(clippy::unwrap_used, unused_must_use, clippy::print_stderr)]
     pub async fn handle(&self, http: &Client, error: impl Display + Send) {
-        let mut error_message = error.to_string();
+        let mut error_message = format!("\n\n{error}");
 
         self.maybe_create_message(http, &mut error_message).await;
         self.maybe_execute_webhook(http, &mut error_message).await;
@@ -105,7 +105,7 @@ impl ErrorHandler {
     /// Prefer this if you've only set [`Self::file`]
     #[allow(clippy::print_stderr)]
     pub fn handle_sync(&self, error: impl Display) {
-        let mut error_message = error.to_string();
+        let mut error_message = format!("\n\n{error}");
 
         self.maybe_append_error(&mut error_message);
 
