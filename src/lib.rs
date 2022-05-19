@@ -11,7 +11,12 @@
     clippy::pattern_type_mismatch
 )]
 
-use std::{error::Error, fmt::Write, fs::OpenOptions, io::Write as _, path::PathBuf};
+use std::{
+    fmt::{Display, Write},
+    fs::OpenOptions,
+    io::Write as _,
+    path::PathBuf,
+};
 
 use twilight_http::Client;
 use twilight_model::id::{
@@ -85,13 +90,11 @@ impl ErrorHandler {
     /// # Panics
     /// If the fallback message or webhook content is somehow invalid
     #[allow(clippy::unwrap_used, unused_must_use, clippy::print_stderr)]
-    pub async fn handle(&self, http: &Client, error: impl Error + Send) {
-        let mut error_message = format!("{error}");
+    pub async fn handle(&self, http: &Client, error: impl Display + Send) {
+        let mut error_message = error.to_string();
 
         self.maybe_create_message(http, &mut error_message).await;
-
         self.maybe_execute_webhook(http, &mut error_message).await;
-
         self.maybe_append_error(&mut error_message);
 
         eprintln!("{error_message}");
@@ -101,8 +104,8 @@ impl ErrorHandler {
     ///
     /// Prefer this if you've only set [`Self::file`]
     #[allow(clippy::print_stderr)]
-    pub fn handle_sync(&self, error: impl Error) {
-        let mut error_message = format!("{error}");
+    pub fn handle_sync(&self, error: impl Display) {
+        let mut error_message = error.to_string();
 
         self.maybe_append_error(&mut error_message);
 
