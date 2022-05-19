@@ -1,6 +1,6 @@
 //! Error handling utility for the Twilight ecosystem
 //!
-//! All of the crate's functionality is under [`Self::ErrorHandler`]
+//! All of the crate's functionality is under [`ErrorHandler`]
 
 #![warn(clippy::cargo, clippy::nursery, clippy::pedantic, clippy::restriction)]
 #![allow(
@@ -34,7 +34,7 @@ pub struct ErrorHandler {
 pub const DEFAULT_ERROR_MESSAGE: &str = "An error occurred, check the `stderr` for more info";
 
 impl ErrorHandler {
-    /// Make a handler that only prints errors to [`io::stderr`]
+    /// Make a handler that only prints errors to [`std::io::stderr`]
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -71,7 +71,7 @@ impl ErrorHandler {
     /// Prefer [`Self::handle_sync`] if [`Self::channel`] or [`Self::webhook`]
     /// aren't set
     ///
-    /// - Prints the error message to [`io::stderr`]
+    /// - Prints the error message to [`std::io::stderr`]
     /// - If [`Self::channel`] was called, creates a message in the given
     ///   channel with the error message or [`DEFAULT_ERROR_MESSAGE`]
     /// - If [`Self::webhook`] was called, executes the webhook with the error
