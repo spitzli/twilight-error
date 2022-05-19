@@ -8,3 +8,9 @@ Error handling utility for the Twilight ecosystem
 - Create a message in a channel with the error message
 - Execute a webhook with the error message
 - Append the error message to a file
+
+## Contributing
+Contributions or even opening issues are very welcomed
+
+## Licence
+Licensed MIT, this is a third party crate that's not affiliated with the Twilight organization
