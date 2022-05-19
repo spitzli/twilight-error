@@ -3,3 +3,8 @@
 
 # Twilight Error
 Error handling utility for the Twilight ecosystem
+
+## Features
+- Create a message in a channel with the error message
+- Execute a webhook with the error message
+- Append the error message to a file
