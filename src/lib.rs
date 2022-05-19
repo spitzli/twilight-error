@@ -88,39 +88,9 @@ impl ErrorHandler {
     pub async fn handle(&self, http: &Client, error: impl Error + Send) {
         let mut error_message = format!("{error}");
 
-        if let Some(channel_id) = self.channel {
-            if let Err(err) = http
-                .create_message(channel_id)
-                .content(&error_message)
-                .unwrap_or_else(|_| {
-                    {
-                        http.create_message(channel_id)
-                            .content("An error occurred, check the `stderr` for more info")
-                    }
-                    .unwrap()
-                })
-                .exec()
-                .await
-            {
-                write!(error_message, "\n\nFailed to create message: {err}");
-            }
-        }
+        self.maybe_create_message(http, &mut error_message).await;
 
-        if let Some((webhook_id, token)) = &self.webhook {
-            if let Err(err) = http
-                .execute_webhook(*webhook_id, token)
-                .content(&error_message)
-                .unwrap_or_else(|_| {
-                    http.execute_webhook(*webhook_id, token)
-                        .content("An error occurred, check the `stderr` for more info")
-                        .unwrap()
-                })
-                .exec()
-                .await
-            {
-                write!(error_message, "\n\nFailed to execute webhook: {err}");
-            }
-        }
+        self.maybe_execute_webhook(http, &mut error_message).await;
 
         self.maybe_append_error(&mut error_message);
 
@@ -137,6 +107,52 @@ impl ErrorHandler {
         self.maybe_append_error(&mut error_message);
 
         eprintln!("{error_message}");
+    }
+
+    /// Tries to create a message with the given error message, falling back to
+    /// the default message content if it's too long, writing the returned error
+    /// to the error message
+    #[allow(unused_must_use, clippy::unwrap_used)]
+    async fn maybe_create_message(&self, http: &Client, error_message: &mut String) {
+        if let Some(channel_id) = self.channel {
+            if let Err(err) = http
+                .create_message(channel_id)
+                .content(error_message)
+                .unwrap_or_else(|_| {
+                    {
+                        http.create_message(channel_id)
+                            .content("An error occurred, check the `stderr` for more info")
+                    }
+                    .unwrap()
+                })
+                .exec()
+                .await
+            {
+                write!(error_message, "\n\nFailed to create message: {err}");
+            }
+        }
+    }
+
+    /// Tries to execute the webhook with the given error message, falling back
+    /// to the default message content if it's too long, writing the
+    /// returned error to the error message
+    #[allow(unused_must_use, clippy::unwrap_used)]
+    async fn maybe_execute_webhook(&self, http: &Client, error_message: &mut String) {
+        if let Some((webhook_id, token)) = &self.webhook {
+            if let Err(err) = http
+                .execute_webhook(*webhook_id, token)
+                .content(error_message)
+                .unwrap_or_else(|_| {
+                    http.execute_webhook(*webhook_id, token)
+                        .content("An error occurred, check the `stderr` for more info")
+                        .unwrap()
+                })
+                .exec()
+                .await
+            {
+                write!(error_message, "\n\nFailed to execute webhook: {err}");
+            }
+        }
     }
 
     /// Tries to append the given error message to the path, writing the
