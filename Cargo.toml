@@ -9,5 +9,5 @@ version = "0.12.0"
 edition = "2021"
 
 [dependencies]
-twilight-http = "0.12"
-twilight-model = "0.12"
+twilight-http = "0.14"
+twilight-model = "0.14"
